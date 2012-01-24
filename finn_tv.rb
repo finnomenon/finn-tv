@@ -6,10 +6,24 @@ unless !!ENV["NZBM_USER"] and !!ENV["NZBM_PASS"]
   exit!
 end
 
+
+# A simple Client for NZBMatrix.com
+#
+# nzbm_client = NZBMatrixClient.new
+# nzbm_client.authenticate!("user", "pass")
+# results = nzbm_client.search("simpsons")
+#
 class NZBMatrixClient
 
   NZBMatrixURL = "http://nzbmatrix.com/"
   NZBMatrixLoginPath = "account-login.php"
+  
+
+  NZBMatrixSearchPath = "nzb-search.php"
+  NZBMatrixCategories = {
+    "all" => 0, 
+    "TV_HD" => 41 
+  }
 
   def initialize
     @cookies = []
@@ -20,30 +34,37 @@ class NZBMatrixClient
 
     header.split("\n").each do |line|
       if line.include?("Set-Cookie")
-        @cookies.push(line[12..-1])
+        @cookies.push(line[12..-1].split(";")[0])
       end
     end
 
     @cookies.length == 2
   end
 
+  def search(query,category)
+    send_request(NZBMatrixSearchPath, {"search" => query, "cat" => category}, "-i")
+  end
+
 private
 
   def send_request(path,params,curlopts)
+    cookie_part = @cookies.join(";")
     params_part = params.map{ |key, value| "-F \"#{key}=#{value}\"" }.join(" ")
-    %x{curl -s #{curlopts} #{params_part} "#{NZBMatrixURL}#{path}"}
+    puts cookie_part
+    puts %Q{curl -s #{curlopts} #{params_part} -b "#{cookie_part}" "#{NZBMatrixURL}#{path}"}
+    %x{curl -s #{curlopts} #{params_part} -b "#{cookie_part}" "#{NZBMatrixURL}#{path}"}
   end
 
 end
 
 nzbm_client = NZBMatrixClient.new
-logged_in = nzbm_client.authenticate!(ENV["NZBM_USER"], ENV["NZBM_PASS"])
 
-puts  "Logged in? - " + logged_in.inspect
-if !logged_in
+if nzbm_client.authenticate!(ENV["NZBM_USER"], ENV["NZBM_PASS"])
+  puts "[x] logged in"
+else
   exit!
 end
 
+suche = nzbm_client.search("simspons", NZBMatrixClient::NZBMatrixCategories["all"])
 
-#    nzbm_client.get_latest_shows
-
+puts suche
